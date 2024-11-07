@@ -1,5 +1,5 @@
 {
-  description = "A slice type with German string optimizations";
+  description = "An owned slice type with German string optimizations";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
