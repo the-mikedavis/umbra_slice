@@ -447,17 +447,23 @@ impl fmt::Debug for UmbraString {
     }
 }
 
-impl From<&str> for UmbraString {
-    fn from(s: &str) -> Self {
-        // TODO: propagate error instead.
-        assert!(s.len() <= u16::MAX as usize);
-        Self(s.as_bytes().try_into().unwrap())
+impl TryFrom<&str> for UmbraString {
+    type Error = TooLongError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        if s.len() <= u16::MAX as usize {
+            Ok(Self(s.as_bytes().try_into().unwrap()))
+        } else {
+            Err(TooLongError)
+        }
     }
 }
 
-impl From<String> for UmbraString {
-    fn from(s: String) -> Self {
-        s.as_str().into()
+impl TryFrom<String> for UmbraString {
+    type Error = TooLongError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        s.as_str().try_into()
     }
 }
 
@@ -500,27 +506,36 @@ mod test {
             U16UmbraSlice::try_from([1u16].as_slice()).unwrap(),
             U16UmbraSlice::try_from([1u16].as_slice()).unwrap(),
         );
-        assert_eq!(UmbraString::from(""), UmbraString::from(""));
-        assert_eq!(UmbraString::from("foo"), UmbraString::from("foo"),);
+        assert_eq!(
+            UmbraString::try_from("").unwrap(),
+            UmbraString::try_from("").unwrap()
+        );
+        assert_eq!(
+            UmbraString::try_from("foo").unwrap(),
+            UmbraString::try_from("foo").unwrap(),
+        );
     }
 
     #[test]
     fn partial_eq_str() {
         // Small (prefix)
-        assert_eq!(UmbraString::from("hello"), *"hello");
+        assert_eq!(UmbraString::try_from("hello").unwrap(), *"hello");
         // Medium (prefix+suffix)
-        assert_eq!(UmbraString::from("foobarbaz"), *"foobarbaz");
+        assert_eq!(UmbraString::try_from("foobarbaz").unwrap(), *"foobarbaz");
         // Large (allocated buffer)
-        assert_eq!(UmbraString::from("hellohellohello"), *"hellohellohello");
+        assert_eq!(
+            UmbraString::try_from("hellohellohello").unwrap(),
+            *"hellohellohello"
+        );
     }
 
     #[test]
     fn clone() {
-        let s = UmbraString::from("hellohellohello");
+        let s = UmbraString::try_from("hellohellohello").unwrap();
         assert_eq!(s.clone(), s);
         assert_eq!(s.clone(), *"hellohellohello");
 
-        let s = UmbraString::from("foo");
+        let s = UmbraString::try_from("foo").unwrap();
         assert_eq!(s.clone(), s);
         assert_eq!(s.clone(), *"foo");
     }
@@ -535,12 +550,12 @@ mod test {
         }
         let hasher = ahash::RandomState::new();
 
-        let s = UmbraString::from("hellohellohello");
+        let s = UmbraString::try_from("hellohellohello").unwrap();
         assert_eq!(hash_once(&hasher, &s), hash_once(&hasher, &s));
         assert_eq!(hash_once(&hasher, &s), hash_once(&hasher, &s.clone()));
         assert_eq!(
             hash_once(&hasher, &s),
-            hash_once(&hasher, &UmbraString::from("hellohellohello"))
+            hash_once(&hasher, &UmbraString::try_from("hellohellohello").unwrap())
         );
         assert_eq!(
             hash_once(&hasher, &s),
