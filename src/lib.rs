@@ -94,18 +94,44 @@ use alloc::{
 // sections of the type, as follows:
 
 /// Computes the number of `T`s that can be stored in the prefix of the Umbra slice.
-const fn prefix_len<T>() -> usize {
+///
+/// This function should be used when declaring an [UmbraSlice] type. See the [UmbraSlice]
+/// documentation.
+pub const fn prefix_len<T>() -> usize {
     // Remove 16 bits for the `len`.
     (size_of::<usize>() - size_of::<u16>()) / size_of::<T>()
 }
-const fn suffix_len<T>() -> usize {
+
+/// Computes the number of `T`s that can be stored in the suffix of the Umbra slice inline.
+///
+/// This function should be used when declaring an [UmbraSlice] type. See the [UmbraSlice]
+/// documentation.
+pub const fn suffix_len<T>() -> usize {
     // Note that the size of the suffix field in the `Trailing` union below is always
     // `size_of::<usize>()`. This value is the number of `T`s that fit into that slot.
     size_of::<usize>() / size_of::<T>()
 }
 
-// Note: T is assumed to be u8/u16 (though i8/i16 is probably fine too). u32/i32 or larger is
-// probably not worth it and the alignment wouldn't work out nicely since `len` is a `u16`.
+/// An owned slice type with "German string" optimizations.
+///
+/// An Umbra slice is like a `Box<[T]>` but with a space optimization to store up to 14 bytes
+/// inline (without allocating). Umbra slices are a useful tool when you have very many slices
+/// which are typically smaller than 14 bytes. `Eq` is also optimized to quickly disqualify
+/// slices of different lengths and those starting with different prefixes.
+///
+/// [prefix_len] and [suffix_len] should be used to calculate the `PREFIX_LEN` and `SUFFIX_LEN`
+/// const generics.
+///
+/// `T` should be an 8 or 16 byte integer - either signed or unsigned - and `NonZero` versions of
+/// those types are supported as well. 32 bit integers can also fit into this type but the struct
+/// is so small that few `T`s can fit inline, so it is probably not worth it to use this type for
+/// 32 bit integers.
+///
+/// ```
+/// use umbra_slice::{UmbraSlice, prefix_len, suffix_len};
+/// type Bytes = UmbraSlice<u8, { prefix_len::<u8>() }, { suffix_len::<u8>() }>;
+/// assert_eq!(std::mem::size_of::<Bytes>(), std::mem::size_of::<usize>() * 2);
+/// ```
 #[repr(C)]
 pub struct UmbraSlice<T: Copy, const PREFIX_LEN: usize, const SUFFIX_LEN: usize> {
     len: u16,
